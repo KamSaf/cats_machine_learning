@@ -1,5 +1,6 @@
-from main import Point
+from main import Point, Path
 from proper_tchebychew import distance_euclid as distance
+from shapely.geometry import LineString
 
 HUNT_TIME = {
     "fieldmouse": 180,
@@ -9,6 +10,8 @@ HUNT_TIME = {
     "pebble": 30,
     "START": 0
 }
+
+CAT_SPEED = 10
 
 
 class Hunt:
@@ -24,58 +27,79 @@ class Hunt:
         self.points_list.append(prey)
         self.score += self.cat.preferences[prey.type]
         self.distance += distance
-        self.time += (new_distance/self.speed + HUNT_TIME[prey.type])
+        self.time += (new_distance/CAT_SPEED + HUNT_TIME[prey.type])
 
 
 class Cat:
     def __init__(self, name, preferences):
         self.name = name
         self.preferences = preferences
-        self.speed = 10
 
 
+# Basically Point class but with additional value of 'type'
 class Prey(Point):
     def __init__(self, type, x=0, y=0, coordinates_tuple=None):
         super().__init__(x, y, coordinates_tuple)
         self.type = type
 
 
-def can_return(current_point, end_point, time_left):
-    print('...')
-    # checks if cat can return to start point in left time
+# Checks if cat can return to start point in left time
+def can_return(start_point, current_point, end_point, time_left):
+    required_time = HUNT_TIME[end_point.type] + distance(current_point, end_point)/CAT_SPEED + time_to_return(target_point=end_point, start_point=start_point)
+    if required_time <= time_left:
+        return True
+    return False
 
 
-def time_to_return(point):
-    print('...')
-    # returns time which cat needs to return to start point from given point
+# Returns time which cat needs to return to start point from target point (including hunting)
+def time_to_return(target_point, start_point):
+    required_time = HUNT_TIME[target_point.type] + distance(target_point, start_point)/CAT_SPEED
+    return required_time
 
 
 def value_ratio(current_point, end_point, cat):
     print('...')
-    # returns value to time and distance ratio for given point and cat
+    # returns value to time and distance ratio for given point and cat ################### TODO 
 
 
+# Returns true if there are no interesting objects for given cat in given area, else return false
 def no_interesting_objects(cat, points):
-    print('...')
-    # returns true if there are interesting objects for given cat in given area, else return false
+    for point in points:
+        if cat.preferences[point.type] > 0:
+            return False
+    return True
 
 
-def check_if_crossing_paths(start_point, end_point, paths):
-    print('...')
-    # return true if section crosses another cats path, else returns false
+# Returns True if path crosses another cats path, else returns False
+def check_if_crossing_paths(start_point, end_point, cats_paths, cat_name):
+    path_to_check = LineString([(start_point.x, start_point.y), (end_point.x, end_point.y)])
+    for cat_key, paths_list in cats_paths.values():
+        if cat_key != cat_name:
+            for path in paths_list:
+                existing_path = LineString([(point.x, point.y) for point in path.steps])
+                if path_to_check.intersects(existing_path):
+                    return True
+    return False
 
 
 #  Returns cat to the starting point
 def return_to_start(start_point, current_point, current_hunt, time):
     current_hunt.points_list.append(start_point)
-    time -= time_to_return(current_point)
+    time -= time_to_return(target_point=current_point, start_point=start_point)
     return current_hunt, time
 
 
-def updated_paths(cat_paths, cat_hunts):
-    print('...')
-    # adds hunt paths to global paths of all cats and returns updated value (add every path in cat_hunts to cat_paths)
+# Adds hunt paths to global paths of all cats and returns updated value (add every path in cat_hunts to cats_paths)
+def update_paths(cats_paths, cat_hunts):
+    for hunt in cat_hunts:
+        cats_paths[hunt.cat.name].append(Path(hunt.points_list))
+    return cats_paths
 
+
+# cat - Cat class object
+# points - list of points (Prey class objects)
+# start_point - point, from which cat will begin hunting
+# cats_paths - dictionary with key value of cat name and value of Path containing points visited (hunted) by cat
 
 def cat_hunting(cat, points, start_point, cats_paths):
     MIN_TIME = 60
@@ -83,7 +107,7 @@ def cat_hunting(cat, points, start_point, cats_paths):
     POINT_RANGE = 5
     time = 7200
     total_score = 0
-    cats_hunts = []
+    cat_hunts = []
     while (time > MIN_TIME):
         current_point = start_point
         current_hunt = Hunt(cat=cat)
@@ -97,13 +121,13 @@ def cat_hunting(cat, points, start_point, cats_paths):
                     points_in_range.append(point)
             if not no_interesting_objects(cat=cat, points=points_in_range):
                 for point in points_in_range:
-                    if can_return(start_point=current_point, end_point=point, time_left=time) and not check_if_crossing_paths(start_point=current_point, end_point=point, paths=cats_paths):
+                    if can_return(start_point=start_point, current_point=current_point, end_point=point, time_left=time) and not check_if_crossing_paths(start_point=current_point, end_point=point, paths=cats_paths, cat_name = cat.name):
                         if value_ratio(current_point=current_point, end_point=point, cat=cat) > value_ratio(current_point=current_point, end_point=next_point, cat=cat):
                             next_point = point
             # tutaj else i zwiększanie zasięgu poszukiwań jeżeli nic nie znalazł
             if next_point:
                 current_hunt.append(next_point)
-                time -= time_to_return(next_point)
+                time -= time_to_return(target_point=next_point, start_point=start_point)
                 hunt_count += 1
                 points.remove(next_point)
             else:
@@ -111,8 +135,8 @@ def cat_hunting(cat, points, start_point, cats_paths):
                     current_hunt, time = return_to_start(start_point=start_point, current_point=current_point, current_hunt=current_hunt, time=time)
 
         if len(current_hunt.points_list) > 1:
-            cats_hunts.append(current_hunt)
+            cat_hunts.append(current_hunt)
             total_score += current_hunt.score
-    return total_score, points, updated_paths(cat_paths=cats_paths, cat_hunts=cats_hunts)
+    return total_score, points, update_paths(cats_paths=cats_paths, cat_hunts=cat_hunts)
 
 # Generate points as Prey objects, starting objects has type value of START
