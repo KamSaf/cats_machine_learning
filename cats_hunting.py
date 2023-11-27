@@ -62,9 +62,10 @@ def time_to_move(start_point, target_point):
     return required_time
 
 
+# Returns ratio of how profitable given point is
 def value_ratio(current_point, end_point, cat):
-    standardized_distance = 0
-    standardized_time = 0
+    standardized_distance = distance(current_point, end_point)/10
+    standardized_time = time_to_hunt(prey_type=end_point.type, start_point=current_point, end_point=end_point)/(7200)
     value_ratio = 0.5*(1 - standardized_distance) + 0.5*(1 - standardized_time)
     return value_ratio
 
