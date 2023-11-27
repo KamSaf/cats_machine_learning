@@ -43,23 +43,30 @@ class Prey(Point):
         self.type = type
 
 
+# Returns time required to get to prey and hunt it
+def time_to_hunt(prey_type, start_point, end_point):
+    return HUNT_TIME[prey_type] + time_to_move(start_point=start_point, target_point=end_point)
+
+
 # Checks if cat can return to start point in left time
 def can_return(start_point, current_point, end_point, time_left):
-    required_time = HUNT_TIME[end_point.type] + distance(current_point, end_point)/CAT_SPEED + time_to_return(target_point=end_point, start_point=start_point)
+    required_time = time_to_hunt(prey_type=end_point.type, start_point=current_point, end_point=end_point) + time_to_move(start_point=end_point, target_point=start_point)
     if required_time <= time_left:
         return True
     return False
 
 
-# Returns time which cat needs to return to start point from target point (including hunting)
-def time_to_return(target_point, start_point):
-    required_time = HUNT_TIME[target_point.type] + distance(target_point, start_point)/CAT_SPEED
+# Returns time which cat needs to move from start point to target point
+def time_to_move(start_point, target_point):
+    required_time = distance(target_point, start_point)/CAT_SPEED
     return required_time
 
 
 def value_ratio(current_point, end_point, cat):
-    print('...')
-    # returns value to time and distance ratio for given point and cat ################### TODO 
+    standardized_distance = 0
+    standardized_time = 0
+    value_ratio = 0.5*(1 - standardized_distance) + 0.5*(1 - standardized_time)
+    return value_ratio
 
 
 # Returns true if there are no interesting objects for given cat in given area, else return false
@@ -85,7 +92,7 @@ def check_if_crossing_paths(start_point, end_point, cats_paths, cat_name):
 #  Returns cat to the starting point
 def return_to_start(start_point, current_point, current_hunt, time):
     current_hunt.points_list.append(start_point)
-    time -= time_to_return(target_point=current_point, start_point=start_point)
+    time -= time_to_move(start_point=current_point, end_point=start_point)
     return current_hunt, time
 
 
@@ -127,7 +134,7 @@ def cat_hunting(cat, points, start_point, cats_paths):
             # tutaj else i zwiększanie zasięgu poszukiwań jeżeli nic nie znalazł
             if next_point:
                 current_hunt.append(next_point)
-                time -= time_to_return(target_point=next_point, start_point=start_point)
+                time -= time_to_hunt(prey_type=next_point.type, start_point=current_point, end_point=next_point)
                 hunt_count += 1
                 points.remove(next_point)
             else:
